@@ -303,6 +303,7 @@ import threading
 
 from socket import AF_INET
 from socket import AF_INET6
+from pyroute2 import config
 from pyroute2.common import Dotkeys
 from pyroute2.iproute import IPRoute
 from pyroute2.netlink.rtnl import RTM_GETLINK
@@ -313,6 +314,7 @@ from pyroute2.ipdb.linkedset import IPaddrSet
 from pyroute2.ipdb.common import compat
 from pyroute2.ipdb.common import SYNC_TIMEOUT
 from pyroute2.ipdb.route import RoutingTableSet
+from pyroute2.config.test_platform import TestCapsRtnl
 
 
 def get_addr_nla(msg):
@@ -385,6 +387,11 @@ class IPDB(object):
         If you do not provide iproute instance, ipdb will
         start it automatically.
         '''
+        if not config.capabilities:
+            tc = TestCapsRtnl()
+            tc.collect()
+            config.capabilities = tc.capabilities
+
         self.mode = mode
         self.iclass = Interface
         self._stop = False
