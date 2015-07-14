@@ -14,7 +14,7 @@ class em_base(nlmsg):
     def __init__(self, buf=None, length=None, parent=None, debug=False,
                  init=None):
         length = length or self.get_size()
-        super().__init__(buf, length, parent, debug, init)
+        nlmsg.__init__(self, buf, length, parent, debug, init)
 
 
 class em_cmp(em_base):
@@ -36,7 +36,7 @@ class em_cmp(em_base):
         TRANS = 1
 
     def decode(self):
-        super().decode()
+        em_base.decode(self)
 
         self['align'] = self['align_flags'] & 0x0F
         self['flags'] = self['align_flags'] >> 4
@@ -51,7 +51,7 @@ class em_cmp(em_base):
                                self['align'])
         self['layer_opnd'] = (self['operand'] << 4 +
                               self['layer'])
-        return super().encode()
+        em_base.encode(self)
 
     def get_trans(self):
         return self['flags'] & self.Flag.TRANS
@@ -86,7 +86,7 @@ class em_nbyte(em_base):
     )
 
     def decode(self):
-        super().decode()
+        em_base.decode(self)
         self['layer'] = self['layer_len'] >> 12
         length = self['length'] = self['layer_len'] & 0x0FFF
         self.length += length
@@ -99,7 +99,7 @@ class em_nbyte(em_base):
         self.fields = self.fields + (
             ('needle', '%ss' % self['length']),
         )
-        return super().encode()
+        em_base.encode(self)
 
     def __str__(self):
         needle = '0x%(hex_needle)s "%(needle)s"' % {
@@ -153,7 +153,7 @@ class tcf_basic(nla):
 
         class ematch_tree_list(nla):
             nla_map = (
-                ('ZERO', 'none'),
+                ('EMPTY', 'none'),
             )
 
             def __init__(self, buf=None, length=None, parent=None,
@@ -165,7 +165,7 @@ class tcf_basic(nla):
                         self.nla_map.append(
                             ('ITEM', 'ematch')
                         )
-                super().__init__(buf, length, parent, debug, init)
+                nla.__init__(self, buf, length, parent, debug, init)
 
             def __str__(self):
                 pieces = []
@@ -210,7 +210,7 @@ class tcf_basic(nla):
                     return self.hex
 
                 def decode(self):
-                    super().decode()
+                    nla.decode(self)
                     seek = self.buf.tell()
                     cls = self.get_match_cls()
                     self['match'] = cls(self.buf, cls.get_size(), self)
@@ -218,8 +218,9 @@ class tcf_basic(nla):
                     self.buf.seek(seek)
 
                 def encode(self):
-                    super().encode()
-                    self['match'].encode()
+                    nla.encode(self)
+                    if self['match']:
+                        self['match'].encode()
 
                 class Flag:
                     REL_END = 0
