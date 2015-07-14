@@ -9,6 +9,7 @@ from pyroute2.common import basestring
 from pyroute2.netlink import nlmsg
 from pyroute2.netlink import nla
 from pyroute2.netlink import NLA_F_NESTED
+from pyroute2.netlink.rtnl.tcf_basic_msg import tcf_basic
 
 
 TCA_ACT_MAX_PRIO = 32
@@ -87,7 +88,7 @@ def _percent2u32(pct):
     '''xlate a percentage to an uint32 value
     0% -> 0
     100% -> 2**32 - 1'''
-    return int((2 ** 32 - 1) * pct / 100)
+    return int((2**32 - 1)*pct/100)
 
 
 def _red_eval_ewma(qmin, burst, avpkt):
@@ -679,142 +680,8 @@ class tcmsg(nlmsg, nla_plus_stats2):
         elif kind == 'bpf':
             return self.options_bpf
         elif kind == 'basic':
-            return self.options_basic
+            return tcf_basic
         return self.hex
-
-    class options_basic(nla):
-        nla_map = (
-            ('TCA_BASIC_UNSPEC', 'none'),
-            ('TCA_BASIC_CLASSID', 'uint32'),
-            ('TCA_BASIC_EMATCH_TREE', 'ematch_tree'),
-        )
-
-        class ematch_tree(nla):
-            nla_map = (
-                ('TCA_EMATCH_TREE_UNSPEC', 'none'),
-                ('TCA_EMATCH_TREE_HDR', 'tcf_ematch_tree_hdr'),
-                ('TCA_EMATCH_TREE_LIST', 'ematch_tree_list'),
-            )
-
-            class tcf_ematch_tree_hdr(nla):
-                fields = (
-                    ('nmatches', 'H'),
-                    ('progid', 'H'),
-                )
-
-            class ematch_tree_list(nla):
-                nla_map = (
-                    ('ZERO', 'none'),
-                )
-
-                def __init__(self, buf=None, length=None, parent=None,
-                             debug=False, init=None):
-                    if parent:
-                        header = parent.get_attr('TCA_EMATCH_TREE_HDR')
-                        self.nla_map = list(self.nla_map)
-                        for i in range(header['nmatches'] + 1):
-                            self.nla_map.append(
-                                ('ITEM', 'ematch')
-                            )
-                    super().__init__(buf, length, parent, debug, init)
-
-                class ematch(nla):
-                    fields = (
-                        ('matchid', 'H'),
-                        ('kind', 'H'),
-                        ('flags', 'H'),
-                        ('pad', 'H'),
-                    )
-
-                    def decode(self):
-                        super().decode()
-                        seek = self.buf.tell()
-                        # TODO: implement all matches types
-                        if self['kind'] == 1:
-                            self['match'] = self.em_cmp(self.buf).decode()
-                        else:
-                            # TODO: write this
-                            pass
-                        self.buf.seek(seek)
-
-                    class Flag:
-                        REL_END = 0
-                        REL_AND = 1 << 0
-                        REL_OR = 1 << 1
-                        INVERT = 1 << 2
-                        SIMPLE = 1 << 3
-                        REL_MASK = REL_AND | REL_OR
-
-                    class Kind:
-                        CONTAINER = 0
-                        CMP = 1
-                        NBYTE = 2
-                        U32 = 3
-                        META = 4
-                        TEXT = 5
-                        VLAN = 6
-                        CANID = 7
-                        IPSET = 8
-
-                    def get_relation(self):
-                        return self['flags'] & self.Flag.REL_MASK
-
-                    def get_invert(self):
-                        return self['flags'] & self.Flag.INVERT
-
-                    def get_simple(self):
-                        return self['flags'] & self.Flag.SIMPLE
-
-                    class embase(dict):
-                        # TODO: more pyroute2-native parsing
-                        fields = ()
-
-                        def __init__(self, buf):
-                            super().__init__()
-                            self.offset = buf.tell()
-                            self.buf = buf
-
-                        def decode(self):
-                            fmt = ''.join(f[1] for f in self.fields)
-                            data = struct.unpack(fmt, self.buf.read(
-                                struct.calcsize(fmt)))
-                            for i in range(len(self.fields)):
-                                name, _ = self.fields[i]
-                                self[name] = data[i]
-                            return self
-
-                        def encode(self):
-                            data = [self[name] for name, _ in self.fields]
-                            fmt = ''.join(f[1] for f in self.fields)
-                            struct.pack_into(fmt, self.buf, self.offset, *data)
-
-                    class em_cmp(embase):
-                        fields = (
-                            ('val', 'I'),
-                            ('mask', 'I'),
-                            ('off', 'H'),
-                            ('align_flags', 'B'),  # 4b FLAGS, 4b ALIGN
-                            ('layer_opnd', 'B'),  # 4b OPND, 4b LAYER
-                        )
-
-                        def decode(self):
-                            super().decode()
-
-                            self['align'] = self['align_flags'] & 0x0F
-                            self['flags'] = self['align_flags'] >> 4
-                            self['layer'] = self['layer_opnd'] & 0x0F
-                            self['opnd'] = self['layer_opnd'] >> 4
-
-                            del self['align_flags']
-                            del self['layer_opnd']
-                            return self
-
-                        def encode(self):
-                            self['align_flags'] = (self['flags'] << 4 +
-                                                   self['align'])
-                            self['layer_opnd'] = (self['opnd'] << 4 +
-                                                  self['layer'])
-                            return super().encode()
 
     class options_ingress(nla):
         fields = (('value', 'I'), )
