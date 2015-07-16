@@ -834,7 +834,7 @@ class IPRouteMixin(object):
                   rate="192kbit",
                   burst=1024 * 6,
                   prio=1)
-            ip.tc("add-class", "htb", eht0, 0x10020,
+            ip.tc("add-class", "htb", eth0, 0x10020,
                   parent=0x10001,
                   rate="128kbit",
                   burst=1024 * 6,
@@ -878,7 +878,7 @@ class IPRouteMixin(object):
                     'replace-class': (RTM_NEWTCLASS, flags_replace),
                     'add-filter': (RTM_NEWTFILTER, flags_make),
                     'del-filter': (RTM_DELTFILTER, flags_make),
-                    'change-class': (RTM_NEWTFILTER, flags_change),
+                    'change-filter': (RTM_NEWTFILTER, flags_change),
                     'replace-filter': (RTM_NEWTFILTER, flags_replace)}
         if isinstance(command, int):
             command = (command, flags_make)
