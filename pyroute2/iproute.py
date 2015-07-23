@@ -106,6 +106,7 @@ from pyroute2.netlink.rtnl import rtprotos
 from pyroute2.netlink.rtnl import rtypes
 from pyroute2.netlink.rtnl import rtscopes
 from pyroute2.netlink.rtnl.req import IPLinkRequest
+from pyroute2.netlink.rtnl.tcf_basic_msg import get_basic_parameters
 from pyroute2.netlink.rtnl.tcmsg import get_htb_parameters
 from pyroute2.netlink.rtnl.tcmsg import get_htb_class_parameters
 from pyroute2.netlink.rtnl.tcmsg import get_tbf_parameters
@@ -382,6 +383,7 @@ class IPRouteMixin(object):
 
         return self.rule((RTM_GETROUTE, msg_flags),
                          family=family, match=match or kwarg, **nkw)
+
     # 8<---------------------------------------------------------------
 
     # 8<---------------------------------------------------------------
@@ -527,6 +529,7 @@ class IPRouteMixin(object):
                                         msg_type=RTM_DELRULE,
                                         msg_flags=flags))
         return ret
+
     # 8<---------------------------------------------------------------
 
     # 8<---------------------------------------------------------------
@@ -635,9 +638,9 @@ class IPRouteMixin(object):
         mask = kwarg.pop('mask', 0) or kwarg.pop('change', 0) or 0
 
         if 'state' in kwarg:
-            mask = 1                  # IFF_UP mask
+            mask = 1  # IFF_UP mask
             if kwarg['state'].lower() == 'up':
-                flags = 1             # 0 (down) or 1 (up)
+                flags = 1  # 0 (down) or 1 (up)
             del kwarg['state']
 
         msg['flags'] = flags
@@ -765,7 +768,7 @@ class IPRouteMixin(object):
                                msg_type=command,
                                msg_flags=flags,
                                terminate=lambda x: x['header']['type'] ==
-                               NLMSG_ERROR)
+                                                   NLMSG_ERROR)
         if match:
             return self._match(match, ret)
         else:
@@ -916,22 +919,29 @@ class IPRouteMixin(object):
                 opts = get_sfq_parameters(kwarg)
         elif kind == 'u32':
             msg['parent'] = kwarg.get('parent')
-            msg['info'] = htons(kwarg.get('protocol', 0) & 0xffff) |\
-                ((kwarg.get('prio', 0) << 16) & 0xffff0000)
+            msg['info'] = htons(kwarg.get('protocol', 0) & 0xffff) | \
+                          ((kwarg.get('prio', 0) << 16) & 0xffff0000)
             if kwarg:
                 opts = get_u32_parameters(kwarg)
         elif kind == 'fw':
             msg['parent'] = kwarg.get('parent')
-            msg['info'] = htons(kwarg.get('protocol', 0) & 0xffff) |\
-                ((kwarg.get('prio', 0) << 16) & 0xffff0000)
+            msg['info'] = htons(kwarg.get('protocol', 0) & 0xffff) | (
+                (kwarg.get('prio', 0) << 16) & 0xffff0000)
             if kwarg:
                 opts = get_fw_parameters(kwarg)
         elif kind == 'bpf':
             msg['parent'] = kwarg.get('parent', TC_H_ROOT)
-            msg['info'] = htons(kwarg.get('protocol', ETH_P_ALL) & 0xffff) |\
-                ((kwarg.get('prio', 0) << 16) & 0xffff0000)
+            msg['info'] = htons(kwarg.get('protocol', ETH_P_ALL) & 0xffff) | (
+                (kwarg.get('prio', 0) << 16) & 0xffff0000)
             if kwarg:
                 opts = get_bpf_parameters(kwarg)
+        elif kind == 'basic':
+            assert command in {RTM_NEWTFILTER, RTM_DELTFILTER, RTM_GETTFILTER}
+            msg['info'] = htons(kwarg.get('protocol', ETH_P_ALL) & 0xffff)(
+                (kwarg.get('prio', 0) << 16) & 0xffff0000)
+            msg['parent'] = kwarg.get('parent', TC_H_ROOT)
+            if kwarg:
+                opts = get_basic_parameters(kwarg)
         else:
             msg['parent'] = kwarg.get('parent', TC_H_ROOT)
 
@@ -1135,7 +1145,7 @@ class IPRouteMixin(object):
             msg['dst_len'] = kwarg['dst_len']
         if 'src_len' in kwarg:
             msg['src_len'] = kwarg['src_len']
-        addr_len = {AF_INET6: 128, AF_INET:  32}.get(family, 0)
+        addr_len = {AF_INET6: 128, AF_INET: 32}.get(family, 0)
         if 'src' in kwarg:
             msg['attrs'].append(['FRA_SRC', kwarg['src']])
             if kwarg.get('src_len') is None:
@@ -1155,7 +1165,7 @@ class IPRouteMixin(object):
             return self._match(kwarg['match'], ret)
         else:
             return ret
-    # 8<---------------------------------------------------------------
+            # 8<---------------------------------------------------------------
 
 
 class IPRoute(IPRouteMixin, IPRSocket):
